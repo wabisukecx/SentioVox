@@ -1,19 +1,23 @@
+import os
 import sys
 import io
 import json
+import time
 from datetime import datetime
 import numpy as np
 import requests
 import sounddevice
 import soundfile
 import ffmpeg
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from ..models.voice import VoiceParams, VoiceStyle
 from ..models.constants import (
     AIVIS_BASE_URL,
     DEFAULT_OUTPUT_SAMPLING_RATE,
-    EMOTION_SCORE_THRESHOLD
+    EMOTION_SCORE_THRESHOLD,
+    AIVIS_PATH
 )
 
 def ensure_aivis_server(url: str) -> Tuple[bool, str]:
@@ -25,14 +29,32 @@ def ensure_aivis_server(url: str) -> Tuple[bool, str]:
     Returns:
         (bool, str): 成功したかどうかとメッセージのタプル
     """
+    success = False
     try:
         response = requests.get(f"{url}/version")
         if response.status_code == 200:
             return True, "AivisSpeech-Engineに接続しました。"
         return False, "AivisSpeech-Engineが応答しません。"
-    except requests.exceptions.RequestException:
-        return False, "AivisSpeech-Engineに接続できません。"
-
+    except requests.exceptions.RequestException:    
+    
+    # サーバーが応答しない場合、Aivis Engineを起動
+        try:
+            exe_path = AIVIS_PATH
+            if os.path.exists(exe_path):
+                subprocess.Popen(exe_path)
+                print("Aivis Engineを起動しています...")
+                time.sleep(10)  # エンジンの起動を待つ
+                
+                # 再度サーバーの状態を確認
+                response = requests.get(f"{url}/version")
+                if response.status_code == 200:
+                    return True, "Aivis Engineが正常に起動しました。"
+                else:
+                    return False, "Aivis Engineの起動に失敗しました。"
+            else:
+                return False, "Aivis Engineの実行ファイルが見つかりません。"
+        except Exception as e:
+            return False, f"Aivis Engineの起動中にエラーが発生しました: {str(e)}"
 
 class AivisAdapter:
     """SentioVoxの音声合成アダプター
