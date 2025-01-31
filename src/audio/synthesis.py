@@ -13,6 +13,7 @@
 
 import os
 import time
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
@@ -21,7 +22,7 @@ import ffmpeg
 import sounddevice
 import soundfile
 from ..models.constants import AIVIS_BASE_URL
-from .process_manager import ensure_aivis_server
+from .process_manager import ensure_aivis_server, AivisProcessManager
 from .processor import AudioProcessor
 from .emotion_mapper import EmotionVoiceMapper
 from .aivis_client import AivisClient
@@ -54,6 +55,12 @@ class AivisAdapter:
         self.audio_processor = AudioProcessor()
         self.emotion_mapper = EmotionVoiceMapper()
         self.aivis_client = AivisClient(AIVIS_BASE_URL)
+        self.process_manager = AivisProcessManager()
+
+    def cleanup(self):
+        """AIVISプロセスのクリーンアップ"""
+        if hasattr(self, 'process_manager'):
+            self.process_manager.cleanup()
 
     def speak_continuous(
         self,
@@ -142,7 +149,7 @@ class AivisAdapter:
             traceback.print_exc()
             return None
 
-        # 保存パスの決定と音声ファイルの生成
+        # 保存と再生の処理
         output_path = self._save_audio_file(
             combined_audio,
             rate,
@@ -164,7 +171,7 @@ class AivisAdapter:
 
     def _save_audio_file(
         self,
-        audio_data: np.ndarray,
+        audio_data: np.ndarray, 
         rate: int,
         save_path: Optional[str]
     ) -> Optional[str]:
@@ -173,14 +180,14 @@ class AivisAdapter:
         音声データをWAVファイルとして保存し、必要に応じてM4Aに
         変換します。一時ファイルの適切な管理とエラーハンドリングを
         行います。
-        
+
         Args:
             audio_data: 音声データ配列
             rate: サンプリングレート
             save_path: 保存先のパス（オプション）
-            
+
         Returns:
-            Optional[str]: 保存したファイルのパス
+            Optional[str]: 保存したファイルのパス、エラー時はNone
         """
         # 保存パスの設定
         if save_path is None:
@@ -192,29 +199,51 @@ class AivisAdapter:
         try:
             soundfile.write(str(temp_wav), audio_data, rate)
             print(f"一時WAVファイルを保存しました: {temp_wav}")
+
+            # M4Aへの変換処理
+            try:
+                process = (
+                    ffmpeg
+                    .input(str(temp_wav))
+                    .output(
+                        str(save_path),
+                        acodec='aac',
+                        audio_bitrate='192k',
+                        loglevel='error'
+                    )
+                    .overwrite_output()
+                    .run_async(pipe_stdout=True, pipe_stderr=True)
+                )
+
+                # タイムアウト付きで変換処理の完了を待機
+                try:
+                    stdout, stderr = process.communicate(timeout=30)
+                    print(f"音声ファイルを保存しました: {save_path}")
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    print("FFmpegの処理がタイムアウトしました。WAVファイルを使用します。")
+                    save_path = str(temp_wav)
+                    return save_path
+
+            except ffmpeg.Error as e:
+                print(f"M4Aへの変換に失敗しました: {str(e)}")
+                print("WAVファイルを代替として使用します。")
+                save_path = str(temp_wav)
+                return save_path
+
         except Exception as e:
-            print(f"WAVファイルの保存中にエラーが発生しました: {str(e)}")
+            print(f"音声ファイルの保存中にエラーが発生しました: {str(e)}")
+            if temp_wav.exists():
+                save_path = str(temp_wav)
+                return save_path
             return None
 
-        # M4Aへの変換
-        try:
-            stream = ffmpeg.input(str(temp_wav))
-            stream = ffmpeg.output(
-                stream,
-                str(save_path),
-                acodec='aac',
-                audio_bitrate='192k'
-            )
-            ffmpeg.run(stream, capture_stdout=True, capture_stderr=True)
-            print(f"音声ファイルを保存しました: {save_path}")
-        except ffmpeg.Error as e:
-            print(f"M4Aへの変換に失敗しました: {str(e)}")
-            save_path = str(temp_wav)  # WAVファイルを代替として使用
         finally:
             # 一時ファイルのクリーンアップ
             if temp_wav.exists() and save_path != str(temp_wav):
                 try:
                     temp_wav.unlink()
+                    print("一時WAVファイルを削除しました")
                 except Exception as e:
                     print(f"一時ファイルの削除中にエラーが発生しました: {str(e)}")
 
