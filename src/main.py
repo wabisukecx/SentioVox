@@ -23,6 +23,20 @@ class EmotionAnalysisSystem:
         self.emotion_analyzer = EmotionAnalyzer()
         self.text_processor = TextProcessor()
 
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup()
+        
+    def cleanup(self):
+        """システムリソースのクリーンアップ"""
+        if hasattr(self, 'recorder'):
+            self.recorder._cleanup()
+        if hasattr(self, 'aivis'):
+            # AivisAdapterのクリーンアップを呼び出し
+            self.aivis.cleanup()
+
     def record_and_analyze(
         self,
         duration: int = 10,
@@ -94,7 +108,8 @@ class EmotionAnalysisSystem:
             emotion_scores = self.emotion_analyzer.analyze_emotions(segments)
             self.emotion_analyzer.print_results(segments, emotion_scores)
 
-            if speak or save_path:
+            # speak が True の場合のみ音声合成を実行
+            if speak:
                 self.analyze_and_speak(
                     segments,
                     emotion_scores,
@@ -180,31 +195,30 @@ def main():
     )
 
     args = parser.parse_args()
-    system = EmotionAnalysisSystem()
 
     try:
-        if args.record:
-            print("マイク録音を開始します...")
-            system.record_and_analyze(
-                args.duration,
-                speak=args.speak,
-                save_path=args.output,
-                play_audio=not args.no_play
-            )
-        elif args.file:
-            system.process_file(
-                args.file,
-                speak=args.speak,
-                save_path=args.output,
-                play_audio=not args.no_play
-            )
-        else:
-            parser.print_help()
+        with EmotionAnalysisSystem() as system:
+            if args.record:
+                print("マイク録音を開始します...")
+                system.record_and_analyze(
+                    args.duration,
+                    speak=args.speak,
+                    save_path=args.output,
+                    play_audio=not args.no_play
+                )
+            elif args.file:
+                system.process_file(
+                    args.file,
+                    speak=args.speak,
+                    save_path=args.output,
+                    play_audio=not args.no_play
+                )
+            else:
+                parser.print_help()
     except KeyboardInterrupt:
         print("\n処理が中断されました")
     except Exception as e:
         print(f"\nエラーが発生しました: {str(e)}")
-
 
 if __name__ == "__main__":
     main()
