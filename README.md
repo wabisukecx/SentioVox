@@ -175,12 +175,7 @@ python -m src.main [オプション]
    ```bash
    python -m src.main --record --duration 15 --speak --output recording.m4a
    ```
-
-4. **既存音声の感情強調**
-   ```bash
-   python -m src.main --file input.wav --speak --output enhanced.m4a
-   ```
-
+   
 ## 音声出力仕様
 
 ### 1. リアルタイム再生
