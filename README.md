@@ -4,10 +4,10 @@
 
 ## 機能
 
-- 音声録音
-- 音声からのテキスト抽出
-- テキストの感情分析
-- 感情に基づいた音声合成
+- 音声録音: マイクからの音声入力
+- 音声文字起こし: 音声ファイル(.mp3, .wav, .m4a, .flac)から日本語テキストを抽出
+- テキストの感情分析: 日本語テキストから8つの基本感情を分析
+- 感情に基づいた音声合成: 分析結果に応じた感情表現豊かな音声を生成
 
 ## 必要条件
 
@@ -44,26 +44,31 @@ python -m spacy download ja_ginza
 
 ### コマンドライン引数
 
-- `--file`: 分析対象の音声/テキストファイルを指定
+- `--file`: テキストファイル(.txt)または音声ファイル(.mp3, .wav, .m4a, .flac)を指定
 - `--record`: マイクから録音を開始
 - `--duration`: 録音時間（秒）を指定
 - `--speak`: 分析結果を音声合成で読み上げる
 
 ### 例
 
-1. ファイルを分析:
+1. 音声ファイルから文字起こしと感情分析:
+```bash
+python -m src.main --file speech.wav
+```
+
+2. テキストファイルから感情分析:
 ```bash
 python -m src.main --file input.txt
 ```
 
-2. マイクから録音して分析:
+3. マイクから録音して文字起こしと感情分析:
 ```bash
 python -m src.main --record --duration 15
 ```
 
-3. 分析結果を音声合成で読み上げる:
+4. 分析結果を音声合成で読み上げる:
 ```bash
-python -m src.main --file input.txt --speak
+python -m src.main --file speech.wav --speak
 ```
 
 ## プロジェクト構造
