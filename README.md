@@ -27,18 +27,12 @@
 - AivisSpeechをインストールしてください
 - インストール後、音声合成エンジンが正しく配置されていることを確認してください
 
-2. リポジトリをクローン:
-```bash
-git clone <repository-url>
-cd sentiovox
-```
-
-3. 依存パッケージのインストール:
+2. 依存パッケージのインストール:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. SpaCy日本語モデルのインストール:
+3. SpaCy日本語モデルのインストール:
 ```bash
 python -m spacy download ja_ginza
 ```
