@@ -14,6 +14,9 @@
 ### システム要件
 - Python 3.8以上
 - CUDA対応GPUを推奨（ない場合はCPUモードで動作）
+  - PyTorchは環境に応じてインストールしてください
+    - CPU環境の場合: `pip install torch`
+    - CUDA環境の場合: [PyTorch公式サイト](https://pytorch.org/get-started/locally/)で環境に合わせたインストールコマンドを確認してください
 
 ### 必須ソフトウェア
 - AivisSpeech
