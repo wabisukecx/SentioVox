@@ -34,6 +34,7 @@ DEFAULT_RATE = 16000             # 録音のサンプリングレート（Hz）
 # AIVIS関連の定数
 AIVIS_BASE_URL = "http://127.0.0.1:10101"  # AIVISサーバーのベースURL
 DEFAULT_OUTPUT_SAMPLING_RATE = 24000        # 出力音声のサンプリングレート（Hz）
+AIVIS_PATH = r"C:\Program Files\AivisSpeech\AivisSpeech-Engine\run.exe"
 
 # バッチ処理関連の定数
 DEFAULT_BATCH_SIZE = 8            # テキスト処理のデフォルトバッチサイズ
