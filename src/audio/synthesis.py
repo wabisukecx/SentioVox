@@ -1,147 +1,59 @@
+"""音声合成システムのメインモジュール
+
+このモジュールは、感情分析に基づく音声合成システムの中核となる機能を提供します。
+各コンポーネント（プロセス管理、音声処理、感情マッピング、AIVISクライアント）を
+統合し、テキストから感情豊かな音声を生成するプロセス全体を管理します。
+
+このモジュールの主な責任：
+1. 各コンポーネントの初期化と管理
+2. 音声合成プロセス全体の調整
+3. エラーハンドリングとリカバリ
+4. 音声ファイルの保存と再生の制御
+"""
+
 import os
-import sys
-import io
-import json
 import time
 from datetime import datetime
+from pathlib import Path
+from typing import Optional, List
 import numpy as np
-import requests
+import ffmpeg
 import sounddevice
 import soundfile
-import ffmpeg
-import subprocess
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional
-from ..models.voice import VoiceParams, VoiceStyle
-from ..models.constants import (
-    AIVIS_BASE_URL,
-    DEFAULT_OUTPUT_SAMPLING_RATE,
-    EMOTION_SCORE_THRESHOLD,
-    AIVIS_PATH
-)
-
-def ensure_aivis_server(url: str) -> Tuple[bool, str]:
-    """AivisSpeech-Engineの状態を確認する
-    
-    Args:
-        url: サーバーのURL
-        
-    Returns:
-        (bool, str): 成功したかどうかとメッセージのタプル
-    """
-    success = False
-    try:
-        response = requests.get(f"{url}/version")
-        if response.status_code == 200:
-            return True, "AivisSpeech-Engineに接続しました。"
-        return False, "AivisSpeech-Engineが応答しません。"
-    except requests.exceptions.RequestException:    
-    
-    # サーバーが応答しない場合、Aivis Engineを起動
-        try:
-            exe_path = AIVIS_PATH
-            if os.path.exists(exe_path):
-                subprocess.Popen(exe_path)
-                print("Aivis Engineを起動しています...")
-                time.sleep(10)  # エンジンの起動を待つ
-                
-                # 再度サーバーの状態を確認
-                response = requests.get(f"{url}/version")
-                if response.status_code == 200:
-                    return True, "Aivis Engineが正常に起動しました。"
-                else:
-                    return False, "Aivis Engineの起動に失敗しました。"
-            else:
-                return False, "Aivis Engineの実行ファイルが見つかりません。"
-        except Exception as e:
-            return False, f"Aivis Engineの起動中にエラーが発生しました: {str(e)}"
+from ..models.constants import AIVIS_BASE_URL
+from .process_manager import ensure_aivis_server
+from .processor import AudioProcessor
+from .emotion_mapper import EmotionVoiceMapper
+from .aivis_client import AivisClient
 
 class AivisAdapter:
-    """SentioVoxの音声合成アダプター
+    """音声合成アダプター
     
-    感情分析の結果に基づいて、AIVISエンジンを用いた感情豊かな音声合成を実現します。
-    各感情に対応する音声パラメータを適切に調整し、自然で表現力豊かな音声を生成します。
-    
-    生成した音声は、再生だけでなくファイルとしての保存にも対応し、
-    WAVやM4A形式でエクスポートすることができます。
+    このクラスは、感情分析の結果に基づいて音声を合成し、高品質な
+    音声出力を生成します。各コンポーネントを適切に連携させ、
+    エラーが発生した場合でも適切に処理を継続します。
     """
+    
     def __init__(self):
-        self.URL = AIVIS_BASE_URL
+        """初期化
         
-        # AivisSpeech-Engineの状態を確認
-        success, message = ensure_aivis_server(self.URL)
+        各コンポーネントを初期化し、AIVISエンジンの状態を確認します。
+        エンジンが利用できない場合は、適切なエラーメッセージと共に
+        プログラムを終了します。
+        """
+        # AIVISエンジンの状態確認
+        success, message = ensure_aivis_server(AIVIS_BASE_URL)
         if not success:
-            print(f"\nエラー: {message}")
-            print("音声合成を利用するには、AivisSpeech-Engineが必要です。")
-            sys.exit(1)
-            
-        print(f"\n{message}")  # 成功メッセージを表示
+            raise RuntimeError(
+                f"\nエラー: {message}\n"
+                "音声合成を利用するには、AivisSpeech-Engineが必要です。"
+            )
+        print(f"\n{message}")
         
-        # 各感情スタイルに対応する音声パラメータの設定
-        self.voice_parameters = {
-            VoiceStyle.NORMAL: VoiceParams(
-                888753761, 1.0, 1.0, 1.0, 0.0, 1.0, 0.1, 0.1),
-            VoiceStyle.JOY: VoiceParams(
-                888753764, 1.2, 1.15, 1.1, 0.03, 1.1, 0.1, 0.1),
-            VoiceStyle.SADNESS: VoiceParams(
-                888753765, 0.7, 0.85, 0.9, -0.02, 0.9, 0.2, 0.1),
-            VoiceStyle.ANTICIPATION: VoiceParams(
-                888753762, 1.05, 1.1, 1.05, 0.02, 1.05, 0.1, 0.1),
-            VoiceStyle.SURPRISE: VoiceParams(
-                888753762, 1.3, 1.2, 1.15, 0.05, 1.2, 0.1, 0.1),
-            VoiceStyle.ANGER: VoiceParams(
-                888753765, 1.3, 1.2, 1.05, 0.04, 1.3, 0.1, 0.1),
-            VoiceStyle.FEAR: VoiceParams(
-                888753763, 1.1, 1.1, 1.1, 0.03, 0.9, 0.2, 0.1),
-            VoiceStyle.DISGUST: VoiceParams(
-                888753765, 1.15, 1.05, 0.95, 0.02, 1.1, 0.2, 0.1),
-            VoiceStyle.TRUST: VoiceParams(
-                888753763, 1.02, 1.0, 0.95, 0.01, 1.0, 0.1, 0.1)
-        }
-
-    def calculate_mixed_parameters(
-        self,
-        emotion_scores: Dict[VoiceStyle, float]
-    ) -> Tuple[int, Dict[str, float]]:
-        """複数の感情スコアを考慮してパラメータを混合"""
-        # float32をfloatに変換
-        emotion_scores = {k: float(v) for k, v in emotion_scores.items()}
-        
-        total_score = sum(emotion_scores.values())
-        if total_score == 0:
-            return self.voice_parameters[VoiceStyle.NORMAL].style_id, {}
-
-        # 最も強い感情を特定
-        dominant_emotion = max(
-            emotion_scores.items(),
-            key=lambda x: x[1]
-        )[0]
-        style_id = self.voice_parameters[dominant_emotion].style_id
-
-        # パラメータの混合処理
-        mixed_params = {}
-        param_names = [
-            'intonationScale',
-            'tempoDynamicsScale',
-            'speedScale',
-            'pitchScale',
-            'volumeScale',
-            'prePhonemeLength',
-            'postPhonemeLength'
-        ]
-        for param_name in param_names:
-            mixed_params[param_name] = 0.0
-
-        # 各感情のウェイトに基づいてパラメータを混合
-        for emotion, score in emotion_scores.items():
-            weight = score / total_score
-            params = self.voice_parameters[emotion].scale_params(weight)
-            for key in mixed_params:
-                mixed_params[key] += params[key]
-
-        # すべての値をfloatに変換
-        mixed_params = {k: float(v) for k, v in mixed_params.items()}
-        return style_id, mixed_params
+        # 各コンポーネントの初期化
+        self.audio_processor = AudioProcessor()
+        self.emotion_mapper = EmotionVoiceMapper()
+        self.aivis_client = AivisClient(AIVIS_BASE_URL)
 
     def speak_continuous(
         self,
@@ -150,53 +62,141 @@ class AivisAdapter:
         save_path: Optional[str] = None,
         play_audio: bool = True
     ) -> Optional[str]:
-        """連続的な音声合成を実行し、必要に応じてファイルに保存
+        """連続的な音声合成を実行
+        
+        複数のテキストセグメントを感情スコアに基づいて合成し、
+        必要に応じてファイルに保存します。処理の各段階で適切な
+        エラーハンドリングを行い、可能な限り処理を継続します。
         
         Args:
             segments: テキストセグメントのリスト
             emotion_scores_list: 感情スコアのリスト
-            save_path: 保存先のパス（指定がない場合は一時ファイルを使用）
+            save_path: 保存先のパス（オプション）
             play_audio: 音声を再生するかどうか
             
         Returns:
-            保存したファイルのパス（save_pathが指定されている場合）
+            Optional[str]: 保存したファイルのパス（保存時のみ）
         """
-        # 全セグメントの音声合成
-        combined_audio = None
+        audio_segments = []
         rate = None
         
-        for text, scores in zip(segments, emotion_scores_list):
-            if not text.endswith('。'):
-                text += '。'
-            
-            style_id, params = self.calculate_mixed_parameters(
-                self._convert_scores_to_dict(scores)
-            )
-            
-            # 音声合成の実行
-            segment_audio = self._synthesize_segment(text, style_id, params)
-            if segment_audio is not None:
-                audio_data, current_rate = segment_audio
-                if combined_audio is None:
-                    combined_audio = audio_data
-                    rate = current_rate
-                else:
-                    combined_audio = np.concatenate([combined_audio, audio_data])
+        print("\n音声合成を開始します...")
+        
+        # 各セグメントの処理
+        for i, (text, scores) in enumerate(zip(segments, emotion_scores_list), 1):
+            if not text.strip():
+                continue
 
-        if combined_audio is None:
-            print("警告: 音声合成に失敗しました")
+            print(f"\nセグメント {i}/{len(segments)} を処理中...")
+            
+            try:
+                # 感情スコアから音声パラメータを計算
+                style_id, params = self.emotion_mapper.calculate_mixed_parameters(
+                    self.emotion_mapper.convert_scores_to_dict(scores)
+                )
+                
+                # 音声合成の実行
+                segment_result = self.aivis_client.synthesize_segment(
+                    text, style_id, params
+                )
+                
+                if segment_result is not None:
+                    audio_data, current_rate = segment_result
+                    
+                    # 音声データの前処理
+                    audio_data = self.audio_processor.apply_preprocessing(
+                        audio_data,
+                        normalize=True,
+                        remove_dc=True,
+                        apply_fade=True
+                    )
+                    
+                    audio_segments.append(audio_data)
+                    if rate is None:
+                        rate = current_rate
+                    print(f"セグメント {i} の合成が完了しました")
+                else:
+                    print(f"警告: セグメント {i} の合成に失敗しました")
+                    continue
+            
+            except Exception as e:
+                print(f"エラー: セグメント {i} の処理中に例外が発生しました: {str(e)}")
+                continue
+
+        # セグメントの合成結果の確認
+        if not audio_segments:
+            print("警告: すべての音声合成に失敗しました")
+            return None
+            
+        try:
+            # 音声セグメントの結合
+            print("\n音声データを結合しています...")
+            combined_audio = self.audio_processor.combine_segments_with_silence(
+                audio_segments
+            )
+            print(f"結合後の音声データの形状: {combined_audio.shape}")
+            
+        except Exception as e:
+            print(f"音声データの結合中にエラーが発生しました: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
 
-        # 保存パスの決定
+        # 保存パスの決定と音声ファイルの生成
+        output_path = self._save_audio_file(
+            combined_audio,
+            rate,
+            save_path
+        )
+        
+        if output_path is None:
+            return None
+
+        # 音声の再生（オプション）
+        if play_audio:
+            try:
+                sounddevice.play(combined_audio, rate)
+                sounddevice.wait()
+            except Exception as e:
+                print(f"音声の再生中にエラーが発生しました: {str(e)}")
+
+        return output_path
+
+    def _save_audio_file(
+        self,
+        audio_data: np.ndarray,
+        rate: int,
+        save_path: Optional[str]
+    ) -> Optional[str]:
+        """音声データをファイルとして保存
+        
+        音声データをWAVファイルとして保存し、必要に応じてM4Aに
+        変換します。一時ファイルの適切な管理とエラーハンドリングを
+        行います。
+        
+        Args:
+            audio_data: 音声データ配列
+            rate: サンプリングレート
+            save_path: 保存先のパス（オプション）
+            
+        Returns:
+            Optional[str]: 保存したファイルのパス
+        """
+        # 保存パスの設定
         if save_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             save_path = f"output_{timestamp}.m4a"
 
         # WAVファイルとして一時保存
         temp_wav = Path(save_path).with_suffix('.wav')
-        soundfile.write(str(temp_wav), combined_audio, rate)
+        try:
+            soundfile.write(str(temp_wav), audio_data, rate)
+            print(f"一時WAVファイルを保存しました: {temp_wav}")
+        except Exception as e:
+            print(f"WAVファイルの保存中にエラーが発生しました: {str(e)}")
+            return None
 
-        # M4Aに変換
+        # M4Aへの変換
         try:
             stream = ffmpeg.input(str(temp_wav))
             stream = ffmpeg.output(
@@ -211,92 +211,11 @@ class AivisAdapter:
             print(f"M4Aへの変換に失敗しました: {str(e)}")
             save_path = str(temp_wav)  # WAVファイルを代替として使用
         finally:
+            # 一時ファイルのクリーンアップ
             if temp_wav.exists() and save_path != str(temp_wav):
-                temp_wav.unlink()  # 一時WAVファイルを削除
-
-        # 音声の再生（オプション）
-        if play_audio:
-            sounddevice.play(combined_audio, rate)
-            sounddevice.wait()
+                try:
+                    temp_wav.unlink()
+                except Exception as e:
+                    print(f"一時ファイルの削除中にエラーが発生しました: {str(e)}")
 
         return save_path
-
-    def _synthesize_segment(
-        self,
-        text: str,
-        style_id: int,
-        params: Dict[str, float]
-    ) -> Optional[Tuple[np.ndarray, int]]:
-        """単一のテキストセグメントを合成"""
-        try:
-            # クエリパラメータの設定
-            query_params = {
-                "text": text,
-                "speaker": style_id,
-                "outputSamplingRate": DEFAULT_OUTPUT_SAMPLING_RATE,
-                "outputStereo": False,
-            }
-
-            # 音声クエリの生成
-            query_response = requests.post(
-                f"{self.URL}/audio_query",
-                params=query_params
-            ).json()
-
-            # パラメータの適用
-            query_response.update(params)
-            query_response.update({
-                "volumeScale": 1.2,
-                "prePhonemeLength": 0.1,
-                "postPhonemeLength": 0.1,
-            })
-
-            # 音声合成の実行
-            audio_response = requests.post(
-                f"{self.URL}/synthesis",
-                params={"speaker": style_id},
-                headers={"accept": "audio/wav", "Content-Type": "application/json"},
-                data=json.dumps(query_response)
-            )
-
-            # 音声データの処理
-            with io.BytesIO(audio_response.content) as stream:
-                audio_data, rate = soundfile.read(stream)
-                return audio_data, rate
-
-        except Exception as e:
-            print(f"セグメントの合成中にエラーが発生しました: {str(e)}")
-            return None
-        
-    def _convert_scores_to_dict(
-        self,
-        scores: List[float]
-    ) -> Dict[VoiceStyle, float]:
-        """感情スコアの配列を辞書形式に変換"""
-        emotion_dict = {}
-        for emotion, score in zip([
-            "喜び", "悲しみ", "期待", "驚き",
-            "怒り", "恐れ", "嫌悪", "信頼"
-        ], scores):
-            if score >= EMOTION_SCORE_THRESHOLD:
-                style = self.map_emotion_to_voice_style(emotion)
-                emotion_dict[style] = float(score)
-        
-        if not emotion_dict:
-            emotion_dict[VoiceStyle.NORMAL] = 1.0
-            
-        return emotion_dict
-
-    def map_emotion_to_voice_style(self, emotion: str) -> VoiceStyle:
-        """感情をボイススタイルにマッピング"""
-        emotion_to_style = {
-            "喜び": VoiceStyle.JOY,
-            "悲しみ": VoiceStyle.SADNESS,
-            "期待": VoiceStyle.ANTICIPATION,
-            "驚き": VoiceStyle.SURPRISE,
-            "怒り": VoiceStyle.ANGER,
-            "恐れ": VoiceStyle.FEAR,
-            "嫌悪": VoiceStyle.DISGUST,
-            "信頼": VoiceStyle.TRUST
-        }
-        return emotion_to_style.get(emotion, VoiceStyle.NORMAL)
