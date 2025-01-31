@@ -1,29 +1,47 @@
 import sys
 import io
 import json
+from datetime import datetime
 import numpy as np
 import requests
 import sounddevice
 import soundfile
-from typing import Dict, List, Tuple
+import ffmpeg
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
 from ..models.voice import VoiceParams, VoiceStyle
 from ..models.constants import (
     AIVIS_BASE_URL,
     DEFAULT_OUTPUT_SAMPLING_RATE,
     EMOTION_SCORE_THRESHOLD
 )
-from ..utils.aivis_utils import ensure_aivis_server
+
+def ensure_aivis_server(url: str) -> Tuple[bool, str]:
+    """AivisSpeech-Engineの状態を確認する
+    
+    Args:
+        url: サーバーのURL
+        
+    Returns:
+        (bool, str): 成功したかどうかとメッセージのタプル
+    """
+    try:
+        response = requests.get(f"{url}/version")
+        if response.status_code == 200:
+            return True, "AivisSpeech-Engineに接続しました。"
+        return False, "AivisSpeech-Engineが応答しません。"
+    except requests.exceptions.RequestException:
+        return False, "AivisSpeech-Engineに接続できません。"
 
 
 class AivisAdapter:
     """SentioVoxの音声合成アダプター
     
     感情分析の結果に基づいて、AIVISエンジンを用いた感情豊かな音声合成を実現します。
-    各感情に対応する音声パラメータ（イントネーション、テンポ、ピッチなど）を
-    適切に調整し、自然で表現力豊かな音声を生成します。
+    各感情に対応する音声パラメータを適切に調整し、自然で表現力豊かな音声を生成します。
     
-    複数の感情が検出された場合は、それらを適切に混合し、
-    より微妙な感情表現を可能にします。
+    生成した音声は、再生だけでなくファイルとしての保存にも対応し、
+    WAVやM4A形式でエクスポートすることができます。
     """
     def __init__(self):
         self.URL = AIVIS_BASE_URL
@@ -106,11 +124,25 @@ class AivisAdapter:
     def speak_continuous(
         self,
         segments: List[str],
-        emotion_scores_list: List[List[float]]
-    ) -> None:
-        """連続的な音声合成を実行"""
-        # 全セグメントとそれに対応する感情スコアの処理
-        combined_params = []
+        emotion_scores_list: List[List[float]],
+        save_path: Optional[str] = None,
+        play_audio: bool = True
+    ) -> Optional[str]:
+        """連続的な音声合成を実行し、必要に応じてファイルに保存
+        
+        Args:
+            segments: テキストセグメントのリスト
+            emotion_scores_list: 感情スコアのリスト
+            save_path: 保存先のパス（指定がない場合は一時ファイルを使用）
+            play_audio: 音声を再生するかどうか
+            
+        Returns:
+            保存したファイルのパス（save_pathが指定されている場合）
+        """
+        # 全セグメントの音声合成
+        combined_audio = None
+        rate = None
+        
         for text, scores in zip(segments, emotion_scores_list):
             if not text.endswith('。'):
                 text += '。'
@@ -118,21 +150,67 @@ class AivisAdapter:
             style_id, params = self.calculate_mixed_parameters(
                 self._convert_scores_to_dict(scores)
             )
-            combined_params.append({
-                'text': text,
-                'style_id': style_id,
-                'params': params
-            })
+            
+            # 音声合成の実行
+            segment_audio = self._synthesize_segment(text, style_id, params)
+            if segment_audio is not None:
+                audio_data, current_rate = segment_audio
+                if combined_audio is None:
+                    combined_audio = audio_data
+                    rate = current_rate
+                else:
+                    combined_audio = np.concatenate([combined_audio, audio_data])
 
-        # 音声合成の実行
-        combined_audio = None
-        rate = None
-        
-        for params in combined_params:
+        if combined_audio is None:
+            print("警告: 音声合成に失敗しました")
+            return None
+
+        # 保存パスの決定
+        if save_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            save_path = f"output_{timestamp}.m4a"
+
+        # WAVファイルとして一時保存
+        temp_wav = Path(save_path).with_suffix('.wav')
+        soundfile.write(str(temp_wav), combined_audio, rate)
+
+        # M4Aに変換
+        try:
+            stream = ffmpeg.input(str(temp_wav))
+            stream = ffmpeg.output(
+                stream,
+                str(save_path),
+                acodec='aac',
+                audio_bitrate='192k'
+            )
+            ffmpeg.run(stream, capture_stdout=True, capture_stderr=True)
+            print(f"音声ファイルを保存しました: {save_path}")
+        except ffmpeg.Error as e:
+            print(f"M4Aへの変換に失敗しました: {str(e)}")
+            save_path = str(temp_wav)  # WAVファイルを代替として使用
+        finally:
+            if temp_wav.exists() and save_path != str(temp_wav):
+                temp_wav.unlink()  # 一時WAVファイルを削除
+
+        # 音声の再生（オプション）
+        if play_audio:
+            sounddevice.play(combined_audio, rate)
+            sounddevice.wait()
+
+        return save_path
+
+    def _synthesize_segment(
+        self,
+        text: str,
+        style_id: int,
+        params: Dict[str, float]
+    ) -> Optional[Tuple[np.ndarray, int]]:
+        """単一のテキストセグメントを合成"""
+        try:
             # クエリパラメータの設定
             query_params = {
-                "text": params['text'],
-                "speaker": params['style_id'],
+                "text": text,
+                "speaker": style_id,
                 "outputSamplingRate": DEFAULT_OUTPUT_SAMPLING_RATE,
                 "outputStereo": False,
             }
@@ -144,7 +222,7 @@ class AivisAdapter:
             ).json()
 
             # パラメータの適用
-            query_response.update(params['params'])
+            query_response.update(params)
             query_response.update({
                 "volumeScale": 1.2,
                 "prePhonemeLength": 0.1,
@@ -154,25 +232,20 @@ class AivisAdapter:
             # 音声合成の実行
             audio_response = requests.post(
                 f"{self.URL}/synthesis",
-                params={"speaker": params['style_id']},
+                params={"speaker": style_id},
                 headers={"accept": "audio/wav", "Content-Type": "application/json"},
                 data=json.dumps(query_response)
             )
 
             # 音声データの処理
             with io.BytesIO(audio_response.content) as stream:
-                segment_data, current_rate = soundfile.read(stream)
-                if combined_audio is None:
-                    combined_audio = segment_data
-                    rate = current_rate
-                else:
-                    combined_audio = np.concatenate([combined_audio, segment_data])
+                audio_data, rate = soundfile.read(stream)
+                return audio_data, rate
 
-        # 結合した音声の再生
-        if combined_audio is not None:
-            sounddevice.play(combined_audio, rate)
-            sounddevice.wait()
-
+        except Exception as e:
+            print(f"セグメントの合成中にエラーが発生しました: {str(e)}")
+            return None
+        
     def _convert_scores_to_dict(
         self,
         scores: List[float]
