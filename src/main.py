@@ -2,6 +2,7 @@ import os
 import argparse
 from datetime import datetime
 from typing import Optional, List
+import shutil
 
 from .audio.recorder import AudioRecorder
 from .audio.synthesis import AivisAdapter
@@ -45,15 +46,12 @@ class EmotionAnalysisSystem:
         play_audio: bool = True
     ) -> Optional[str]:
         """音声の録音と分析を実行
-        
+    
         Args:
-            duration: 録音時間（秒）
-            speak: 音声合成を行うかどうか
-            save_path: 音声ファイルの保存先パス
-            play_audio: 音声を再生するかどうか
-            
-        Returns:
-            録音ファイルのパス（成功時）またはNone（失敗時）
+        duration: 録音時間（秒）
+        speak: 音声合成を行うかどうか
+        save_path: 音声ファイルの保存先パス
+        play_audio: 音声を再生するかどうか
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"recording_{timestamp}.wav"
@@ -61,6 +59,12 @@ class EmotionAnalysisSystem:
             recorded_file = self.recorder.record_chunk(filename, duration)
             if recorded_file:
                 print("\n録音した音声を分析しています...")
+                # 録音ファイルを保存する場合
+                if save_path:
+                    # 録音ファイルを指定されたパスにコピー
+                    shutil.copy2(recorded_file, save_path)
+                    print(f"\n録音ファイルを保存しました: {save_path}")
+            
                 self.process_file(
                     recorded_file,
                     delete_after=True,
@@ -68,7 +72,7 @@ class EmotionAnalysisSystem:
                     save_path=save_path,
                     play_audio=play_audio
                 )
-            return recorded_file
+                return recorded_file
         except KeyboardInterrupt:
             print("\n録音と分析が中断されました")
             if os.path.exists(filename):
@@ -149,16 +153,6 @@ class EmotionAnalysisSystem:
 
 
 def main():
-    """SentioVoxのメイン実行関数: コマンドライン引数の処理と実行を行います。
-    
-    このスクリプトは以下のコマンドライン引数をサポートします：
-    - --file: 分析対象の音声/テキストファイル
-    - --record: マイクからの録音を開始
-    - --duration: 録音時間（秒）を指定
-    - --speak: 分析結果を音声合成で読み上げ
-    - --output: 音声ファイルの出力先を指定（M4A形式）
-    - --no-play: 音声の再生を無効化
-    """
     parser = argparse.ArgumentParser(
         description='SentioVox: 感情分析と音声合成システム'
     )
@@ -185,7 +179,8 @@ def main():
     )
     parser.add_argument(
         '--output',
-        help='音声ファイルの出力先（M4A形式）',
+        metavar='FILENAME',
+        help='音声ファイルの出力先（.wav または .m4a 形式）',
         default=None
     )
     parser.add_argument(
@@ -195,6 +190,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # 出力ファイル名の検証を追加
+    if args.output is not None and not args.output.strip():
+        parser.error("--outputオプションにはファイル名を指定する必要があります")
 
     try:
         with EmotionAnalysisSystem() as system:
