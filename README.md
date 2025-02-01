@@ -2,35 +2,6 @@
 
 SentioVoxは、テキストや音声入力から感情を分析し、その感情に応じた表現豊かな音声を生成する高度な音声合成システムです。検出された感情に基づいて音声パラメータを自動調整し、より自然で感情豊かな音声合成を実現します。
 
-## プロジェクト構造
-
-プロジェクトは以下のような階層構造で整理されています：
-
-```
-src/
-├── __init__.py
-├── main.py                 # メインスクリプト
-├── analysis/              # 分析モジュール
-│   ├── __init__.py
-│   ├── emotion.py         # 感情分析エンジン
-│   └── text.py           # テキスト処理エンジン
-├── audio/                # 音声処理モジュール
-│   ├── __init__.py
-│   ├── aivis_client.py   # AIVISクライアント
-│   ├── emotion_mapper.py # 感情-音声パラメータマッピング
-│   ├── process_manager.py# AIVISプロセス管理
-│   ├── processor.py      # 音声データ処理
-│   ├── recorder.py       # 音声録音
-│   └── synthesis.py      # 音声合成
-├── models/               # モデル定義
-│   ├── __init__.py
-│   ├── constants.py      # システム定数
-│   └── voice.py         # 音声パラメータモデル
-└── utils/               # ユーティリティ
-    ├── __init__.py
-    └── warnings.py      # 警告抑制
-```
-
 ## 主な機能
 
 システムは以下の包括的な機能を提供します：
@@ -62,6 +33,35 @@ SentioVoxを実行するために必要な環境：
 - CUDA対応GPUを推奨（CPUモードも利用可能）
 - AIVISサーバー（localhost:10101で動作）
 - FFmpeg（音声ファイル変換用）
+
+## プロジェクト構造
+
+プロジェクトは以下のような階層構造で整理されています：
+
+```
+src/
+├── __init__.py
+├── main.py                 # メインスクリプト
+├── analysis/              # 分析モジュール
+│   ├── __init__.py
+│   ├── emotion.py         # 感情分析エンジン
+│   └── text.py           # テキスト処理エンジン
+├── audio/                # 音声処理モジュール
+│   ├── __init__.py
+│   ├── aivis_client.py   # AIVISクライアント
+│   ├── emotion_mapper.py # 感情-音声パラメータマッピング
+│   ├── process_manager.py# AIVISプロセス管理
+│   ├── processor.py      # 音声データ処理
+│   ├── recorder.py       # 音声録音
+│   └── synthesis.py      # 音声合成
+├── models/               # モデル定義
+│   ├── __init__.py
+│   ├── constants.py      # システム定数
+│   └── voice.py         # 音声パラメータモデル
+└── utils/               # ユーティリティ
+    ├── __init__.py
+    └── warnings.py      # 警告抑制
+```
 
 ## インストール方法
 
