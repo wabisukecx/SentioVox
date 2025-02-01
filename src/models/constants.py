@@ -6,6 +6,12 @@
 パラメータ管理が可能になります。
 """
 
+# ファイル出力関連の定数
+DEFAULT_OUTPUT_FILENAME = "output"      # デフォルトの出力ファイル名
+TEMP_RECORDING_PREFIX = "recording"     # 一時録音ファイルの接頭辞
+DEFAULT_OUTPUT_EXTENSION = "m4a"        # デフォルトの出力ファイル拡張子
+TEMP_WAV_EXTENSION = "wav"             # 一時ファイルの拡張子
+
 # 感情分析関連の定数
 EMOTION_SCORE_THRESHOLD = 0.05    # 感情を「検出された」とみなす最小スコア
 SEPARATOR_LINE = "-" * 50         # 出力結果の区切り線
@@ -30,6 +36,7 @@ DEFAULT_CHUNK_SIZE = 1024         # 録音時のチャンクサイズ（バイ�
 DEFAULT_FORMAT = "paInt16"        # PyAudioのフォーマット定数（16ビット整数）
 DEFAULT_CHANNELS = 1              # 録音チャンネル数（1=モノラル）
 DEFAULT_RATE = 16000             # 録音のサンプリングレート（Hz）
+DEFAULT_RECORD_DURATION = 10      # デフォルトの録音時間（秒）
 
 # AIVIS関連の定数
 AIVIS_BASE_URL = "http://127.0.0.1:10101"  # AIVISサーバーのベースURL
@@ -51,3 +58,16 @@ EMOTION_LABELS = [
     "嫌悪",     # Disgust
     "信頼"      # Trust
 ]
+
+# 音声ファイル変換関連の定数
+AUDIO_CODEC = 'aac'                # 音声コーデック
+AUDIO_BITRATE = '192k'            # 音声ビットレート
+FFMPEG_LOG_LEVEL = 'error'        # FFmpegのログレベル
+FFMPEG_TIMEOUT = 30               # FFmpeg処理のタイムアウト時間（秒）
+
+# 音声合成処理関連の定数
+PREPROCESSING_CONFIG = {
+    'normalize': True,            # 音量の正規化を行うかどうか
+    'remove_dc': True,            # DCオフセットの除去を行うかどうか
+    'apply_fade': True            # フェード効果を適用するかどうか
+}
