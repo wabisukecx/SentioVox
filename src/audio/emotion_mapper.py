@@ -24,8 +24,7 @@ class EmotionVoiceMapper:
         これらのパラメータは経験的に調整された値であり、自然な
         感情表現を実現するように設計されています。
         """
-        self.voice_parameters = {
-            VoiceStyle.NORMAL: VoiceParams(
+        """ VoiceStyle.NORMAL: VoiceParams(
                 888753761, 1.0, 1.0, 1.0, 0.0, 1.0, 0.1, 0.1),
             VoiceStyle.JOY: VoiceParams(
                 888753764, 1.2, 1.15, 1.1, 0.03, 1.1, 0.1, 0.1),
@@ -42,7 +41,26 @@ class EmotionVoiceMapper:
             VoiceStyle.DISGUST: VoiceParams(
                 888753765, 1.15, 1.05, 0.95, 0.02, 1.1, 0.2, 0.1),
             VoiceStyle.TRUST: VoiceParams(
-                888753763, 1.02, 1.0, 0.95, 0.01, 1.0, 0.1, 0.1)
+                888753763, 1.02, 1.0, 0.95, 0.01, 1.0, 0.1, 0.1) """
+        self.voice_parameters = {
+            VoiceStyle.NORMAL: VoiceParams(
+                606865152, 1.0, 1.0, 1.0, 0.0, 1.0, 0.1, 0.1),
+            VoiceStyle.JOY: VoiceParams(
+                606865152, 1.2, 1.15, 1.1, 0.03, 1.1, 0.1, 0.1),
+            VoiceStyle.SADNESS: VoiceParams(
+                606865152, 0.7, 0.85, 0.9, -0.02, 0.9, 0.2, 0.1),
+            VoiceStyle.ANTICIPATION: VoiceParams(
+                606865152, 1.05, 1.1, 1.05, 0.02, 1.05, 0.1, 0.1),
+            VoiceStyle.SURPRISE: VoiceParams(
+                606865152, 1.3, 1.2, 1.15, 0.05, 1.2, 0.1, 0.1),
+            VoiceStyle.ANGER: VoiceParams(
+                606865152, 1.3, 1.2, 1.05, 0.04, 1.3, 0.1, 0.1),
+            VoiceStyle.FEAR: VoiceParams(
+                606865152, 1.1, 1.1, 1.1, 0.03, 0.9, 0.2, 0.1),
+            VoiceStyle.DISGUST: VoiceParams(
+                606865152, 1.15, 1.05, 0.95, 0.02, 1.1, 0.2, 0.1),
+            VoiceStyle.TRUST: VoiceParams(
+                606865152, 1.02, 1.0, 0.95, 0.01, 1.0, 0.1, 0.1)
         }
 
     def convert_scores_to_dict(
