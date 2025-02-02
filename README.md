@@ -34,6 +34,9 @@ SentioVoxを実行するために必要な環境：
 - AIVISサーバー（localhost:10101で動作）
 - FFmpeg（音声ファイル変換用）
 
+Windows以外でもパラメータを変更すれば動くと思いますが、
+Windows10/11でのご利用を推奨します。
+
 ## プロジェクト構造
 
 プロジェクトは以下のような階層構造で整理されています：
@@ -85,37 +88,25 @@ python -m spacy download ja_ginza
 
 4. FFmpegのインストール:
 
-### Ubuntu/Debian環境
-```bash
-sudo apt-get update
-sudo apt-get install ffmpeg
-```
-
-### macOS環境
-```bash
-brew install ffmpeg
-```
-
-### Windows環境
-1. FFmpegのダウンロード:
+4-1. FFmpegのダウンロード:
    - [FFmpeg公式ダウンロードページ](https://www.ffmpeg.org/download.html)にアクセス
    - 「Windows Builds」のリンクをクリック
    - gyan.devのビルドから「ffmpeg-release-full.7z」をダウンロード
 
-2. インストール手順:
+4-2. インストール手順:
    - ダウンロードした7zファイルを展開
    - 展開したフォルダ内の「bin」フォルダを探す
    - このフォルダを任意の場所（例：C:\Program Files\FFmpeg）に移動
    - 展開したファイルに含まれるドキュメントを参照し、必要なDLLファイルが存在することを確認
 
-3. 環境変数の設定:
+4-3. 環境変数の設定:
    - Windowsキー + Rを押して「systempropertiesadvanced」と入力
    - 「環境変数」ボタンをクリック
    - システム環境変数の「Path」を選択して「編集」をクリック
    - FFmpegのbinフォルダのパス（例：C:\Program Files\FFmpeg\bin）を追加
    - 「OK」を押して設定を保存
 
-4. インストールの確認:
+4-4. インストールの確認:
    ```bash
    ffmpeg -version
    ```
@@ -266,7 +257,7 @@ python -m src.main --record 15 --speak --output my_recording
 
 ## ライセンス
 
-このプロジェクトはMITライセンスの下で公開されています。詳細についてはLICENSEファイルを参照してください。
+このプロジェクトはMITライセンスの下で公開されています。
 
 ## 開発者
 
