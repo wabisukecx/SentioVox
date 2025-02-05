@@ -7,7 +7,12 @@
 
 from typing import Dict, List, Tuple
 from ..models.voice import VoiceParams, VoiceStyle
-from ..models.constants import EMOTION_SCORE_THRESHOLD
+from ..models.constants import (
+    EMOTION_SCORE_THRESHOLD,
+    VOICE_STYLE_IDS,
+    VOICE_PARAMS
+)
+
 
 class EmotionVoiceMapper:
     """感情から音声パラメータへのマッピングを行うクラス
@@ -21,29 +26,43 @@ class EmotionVoiceMapper:
         """音声パラメータの初期化
         
         各感情スタイルに対応する基本的な音声パラメータを設定します。
-        これらのパラメータは経験的に調整された値であり、自然な
-        感情表現を実現するように設計されています。
+        パラメータ値はconstants.pyで一元管理されています。
         """
         self.voice_parameters = {
-            VoiceStyle.NORMAL: VoiceParams(
-                888753761, 1.0, 1.0, 1.0, 0.0, 1.0, 0.1, 0.1),
-            VoiceStyle.JOY: VoiceParams(
-                888753764, 1.2, 1.15, 1.1, 0.03, 1.1, 0.1, 0.1),
-            VoiceStyle.SADNESS: VoiceParams(
-                888753765, 0.7, 0.85, 0.9, -0.02, 0.9, 0.2, 0.1),
-            VoiceStyle.ANTICIPATION: VoiceParams(
-                888753762, 1.05, 1.1, 1.05, 0.02, 1.05, 0.1, 0.1),
-            VoiceStyle.SURPRISE: VoiceParams(
-                888753762, 1.3, 1.2, 1.15, 0.05, 1.2, 0.1, 0.1),
-            VoiceStyle.ANGER: VoiceParams(
-                888753765, 1.3, 1.2, 1.05, 0.04, 1.3, 0.1, 0.1),
-            VoiceStyle.FEAR: VoiceParams(
-                888753763, 1.1, 1.1, 1.1, 0.03, 0.9, 0.2, 0.1),
-            VoiceStyle.DISGUST: VoiceParams(
-                888753765, 1.15, 1.05, 0.95, 0.02, 1.1, 0.2, 0.1),
-            VoiceStyle.TRUST: VoiceParams(
-                888753763, 1.02, 1.0, 0.95, 0.01, 1.0, 0.1, 0.1)
+            VoiceStyle.NORMAL: self._create_voice_params('NORMAL'),
+            VoiceStyle.JOY: self._create_voice_params('JOY'),
+            VoiceStyle.SADNESS: self._create_voice_params('SADNESS'),
+            VoiceStyle.ANTICIPATION: self._create_voice_params('ANTICIPATION'),
+            VoiceStyle.SURPRISE: self._create_voice_params('SURPRISE'),
+            VoiceStyle.ANGER: self._create_voice_params('ANGER'),
+            VoiceStyle.FEAR: self._create_voice_params('FEAR'),
+            VoiceStyle.DISGUST: self._create_voice_params('DISGUST'),
+            VoiceStyle.TRUST: self._create_voice_params('TRUST')
         }
+
+    def _create_voice_params(self, style_name: str) -> VoiceParams:
+        """VoiceParamsオブジェクトを生成
+        
+        定数から音声パラメータを取得し、VoiceParamsオブジェクトを
+        生成します。
+        
+        Args:
+            style_name: 感情スタイル名
+            
+        Returns:
+            VoiceParams: 生成されたパラメータオブジェクト
+        """
+        params = VOICE_PARAMS[style_name]
+        return VoiceParams(
+            style_id=VOICE_STYLE_IDS[style_name],
+            intonation_scale=params['intonation_scale'],
+            tempo_dynamics_scale=params['tempo_dynamics_scale'],
+            speed_scale=params['speed_scale'],
+            pitch_scale=params['pitch_scale'],
+            volume_scale=params['volume_scale'],
+            pre_phoneme_length=params['pre_phoneme_length'],
+            post_phoneme_length=params['post_phoneme_length']
+        )
 
     def convert_scores_to_dict(
         self,
@@ -59,10 +78,6 @@ class EmotionVoiceMapper:
             
         Returns:
             Dict[VoiceStyle, float]: 感情スタイルと強度のマッピング
-        
-        Note:
-            スコアが閾値未満の感情は除外され、有効な感情が
-            存在しない場合は通常スタイルが設定されます。
         """
         emotion_dict = {}
         for emotion, score in zip([
@@ -109,20 +124,13 @@ class EmotionVoiceMapper:
         """複数の感情スコアを考慮してパラメータを混合
         
         各感情の強度に基づいて音声パラメータを適切に混合し、
-        より自然な感情表現を実現します。支配的な感情を基準に
-        スタイルIDを決定し、他の感情の影響を重み付けして
-        パラメータを調整します。
+        より自然な感情表現を実現します。
         
         Args:
             emotion_scores: 感情スタイルと強度のマッピング
             
         Returns:
             Tuple[int, Dict[str, float]]: スタイルIDとパラメータの辞書
-            
-        Note:
-            パラメータは各感情の強度に応じて重み付けされ、
-            最終的なパラメータは全ての有効な感情の影響を
-            反映します。
         """
         # float32をfloatに変換
         emotion_scores = {k: float(v) for k, v in emotion_scores.items()}

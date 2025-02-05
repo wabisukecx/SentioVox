@@ -103,7 +103,6 @@ def ensure_aivis_server(url: str) -> Tuple[bool, str]:
     Returns:
         Tuple[bool, str]: (成功フラグ, メッセージ)
     """
-    success = False
     process_manager = AivisProcessManager()
     
     try:

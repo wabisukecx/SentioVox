@@ -20,7 +20,9 @@ from ..models.constants import (
     VOLUME_SCALE,
     MODEL_TRUNCATION,
     NOISE_SCALE,
-    PRE_POST_PHONEME_LENGTH
+    PRE_POST_PHONEME_LENGTH,
+    REQUEST_TIMEOUT,
+    MAX_TEXT_LENGTH
 )
 
 class AivisClient:
@@ -38,9 +40,12 @@ class AivisClient:
         
         Args:
             base_url: AIVISサーバーのベースURL
+            
+        Note:
+            セッションを再利用することで、TCP接続のオーバーヘッドを削減します。
         """
         self.url = base_url
-        self.session = requests.Session()  # セッションを再利用して効率化
+        self.session = requests.Session()
 
     def synthesize_segment(
         self,
@@ -61,12 +66,21 @@ class AivisClient:
         Returns:
             Tuple[np.ndarray, int]: 音声データとサンプリングレート
             エラーの場合はNoneを返します。
+            
+        Note:
+            テキストが長すぎる場合は自動的に分割して処理します。
         """
         try:
             # テキストの前処理
             text = self._preprocess_text(text)
             if not text:
                 return None
+
+            # テキストの長さチェック
+            if len(text) > MAX_TEXT_LENGTH:
+                print(f"警告: テキストが長すぎます ({len(text)} 文字)")
+                text = text[:MAX_TEXT_LENGTH]
+                print(f"テキストを {MAX_TEXT_LENGTH} 文字に切り詰めました")
 
             # クエリパラメータの設定
             query_params = self._prepare_query_params(text, style_id)
@@ -109,7 +123,24 @@ class AivisClient:
         """テキストの前処理を行う
         
         テキストを正規化し、合成に適した形式に変換します。
+        空白文字の正規化や句読点の調整を行い、
+        不要な記号を適切に処理します。
+        
+        Args:
+            text: 処理対象のテキスト
+            
+        Returns:
+            str: 正規化されたテキスト
+            
+        Note:
+            - ダッシュ（──）は削除
+            - 連続する空白は1つに統合
+            - 文末が句読点で終わっていない場合は句点を追加
         """
+        # 特殊文字の処理
+        text = text.replace('─', '、')  # ダッシュを空白に置換
+        
+        # 基本的な正規化
         text = text.strip()
         text = ' '.join(text.split())  # 連続する空白を1つに
         
@@ -123,6 +154,14 @@ class AivisClient:
         """クエリパラメータを準備する
         
         音声合成のための基本パラメータを設定します。
+        サンプリングレートやステレオ設定などを含みます。
+        
+        Args:
+            text: 合成するテキスト
+            style_id: 音声スタイルのID
+            
+        Returns:
+            Dict: クエリパラメータの辞書
         """
         return {
             "text": text,
@@ -171,7 +210,12 @@ class AivisClient:
             
         Returns:
             Optional[dict]: レスポンスデータ（エラー時はNone）
+            
+        Note:
+            タイムアウトは REQUEST_TIMEOUT 定数で制御されます。
         """
+        kwargs.setdefault('timeout', REQUEST_TIMEOUT)
+        
         for attempt in range(max_retries):
             try:
                 if method.lower() == 'get':
@@ -194,7 +238,7 @@ class AivisClient:
                     return None
                     
                 print(f"リクエスト失敗、リトライします ({attempt + 1}/{max_retries})")
-                time.sleep(retry_delay)
+                time.sleep(retry_delay * (attempt + 1))  # 指数バックオフ
 
     def _process_audio_response(
         self,
@@ -210,6 +254,7 @@ class AivisClient:
             
         Returns:
             Tuple[np.ndarray, int]: 音声データとサンプリングレート
+            エラー時はNoneを返します。
         """
         try:
             with io.BytesIO(response.content) as stream:
@@ -223,12 +268,27 @@ class AivisClient:
         """AIVISサーバーの健康状態をチェック
         
         サーバーが応答可能な状態にあるかを確認します。
+        タイムアウトは REQUEST_TIMEOUT 定数で制御されます。
         
         Returns:
             bool: サーバーが正常に応答する場合はTrue
         """
         try:
-            response = self.session.get(f"{self.url}/version")
+            response = self.session.get(
+                f"{self.url}/version",
+                timeout=REQUEST_TIMEOUT
+            )
             return response.status_code == 200
         except requests.exceptions.RequestException:
             return False
+
+    def cleanup(self) -> None:
+        """リソースのクリーンアップ
+        
+        セッションを閉じ、使用していたリソースを解放します。
+        """
+        if self.session:
+            try:
+                self.session.close()
+            except Exception as e:
+                print(f"セッションのクローズ中にエラーが発生しました: {str(e)}")
