@@ -81,32 +81,27 @@ cd SentioVox
 pip install -r requirements.txt
 ```
 
-3. SpaCy日本語モデルのインストール:
-```bash
-python -m spacy download ja_ginza
-```
+3. FFmpegのインストール:
 
-4. FFmpegのインストール:
-
-4-1. FFmpegのダウンロード:
+3-1. FFmpegのダウンロード:
    - [FFmpeg公式ダウンロードページ](https://www.ffmpeg.org/download.html)にアクセス
    - 「Windows Builds」のリンクをクリック
    - gyan.devのビルドから「ffmpeg-release-full.7z」をダウンロード
 
-4-2. インストール手順:
+3-2. インストール手順:
    - ダウンロードした7zファイルを展開
    - 展開したフォルダ内の「bin」フォルダを探す
    - このフォルダを任意の場所（例：C:\Program Files\FFmpeg）に移動
    - 展開したファイルに含まれるドキュメントを参照し、必要なDLLファイルが存在することを確認
 
-4-3. 環境変数の設定:
+3-3. 環境変数の設定:
    - Windowsキー + Rを押して「systempropertiesadvanced」と入力
    - 「環境変数」ボタンをクリック
    - システム環境変数の「Path」を選択して「編集」をクリック
    - FFmpegのbinフォルダのパス（例：C:\Program Files\FFmpeg\bin）を追加
    - 「OK」を押して設定を保存
 
-4-4. インストールの確認:
+3-4. インストールの確認:
    ```bash
    ffmpeg -version
    ```
