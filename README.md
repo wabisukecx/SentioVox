@@ -31,7 +31,7 @@ SentioVoxには、グラフィカルユーザーインターフェース（GUI�
 以下のコマンドでStreamlit UIを起動できます：
 
 ```bash
-python -m src.ui_main
+streamlit run src/ui/streamlit_app.py --server.fileWatcherType none
 ```
 
 ブラウザが自動的に開き、`http://localhost:8501` でアプリケーションにアクセスできます。
@@ -225,7 +225,7 @@ python -m src.main --record 15 --speak --output my_recording
 Streamlit UIを使用する場合は以下のコマンドを実行します：
 
 ```bash
-python -m src.ui_main
+streamlit run src/ui/streamlit_app.py --server.fileWatcherType none
 ```
 
 ブラウザで自動的にUIが開きます。
