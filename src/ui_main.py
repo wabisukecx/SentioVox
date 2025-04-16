@@ -10,8 +10,10 @@ def main():
     project_root = Path(__file__).parent.parent
     sys.path.append(str(project_root))
     
-    # スクリプトパスを取得
+    # 感情分析機能を含む新UIを使用
     script_path = str(Path(__file__).parent / "ui" / "streamlit_app.py")
+    
+    print(f"Streamlit UIを起動: {script_path}")
     
     # 直接モジュールとしてstreamlitを実行
     os.system(f"streamlit run {script_path}")
