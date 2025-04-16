@@ -1,3 +1,8 @@
+"""SentioVox Streamlit UIの更新版
+
+このモジュールはJSON処理と感情分析の統合を行ったStreamlit UIを提供します。
+"""
+
 import os
 import sys
 from pathlib import Path
@@ -9,6 +14,8 @@ sys.path.append(str(project_root))
 # 絶対インポートに変更
 import streamlit as st
 import json
+import time
+import traceback
 import requests
 import base64
 import pandas as pd
@@ -16,6 +23,7 @@ from io import BytesIO
 from typing import Optional, Dict, List, Tuple
 
 from src.analysis.json_dialogue import JsonDialogueProcessor
+from src.analysis.json_emotion_processor import JsonEmotionProcessor  # 新しく追加
 from src.audio.json_synthesis import JsonSynthesisAdapter
 from src.models.constants import AIVIS_BASE_URL
 
@@ -122,6 +130,9 @@ with tab1:
         - `speaker` と `text` は必須です
         - `dominant_emotion` は主要感情を示す文字列で、オプションです
         - `emotions` は感情と強度の連想配列で、オプションです
+        
+        感情分析が未実施のJSONファイル（speakerとtextのみを含むもの）も
+        アップロード可能です。その場合、感情分析ボタンが表示されます。
         """)
     
     # JSONデータの読み込み
@@ -129,6 +140,65 @@ with tab1:
     
     if json_data and validate_json_format(json_data):
         st.success(f"JSONデータを正常に読み込みました: {len(json_data)}件の会話")
+        
+        # 感情情報が含まれているかチェック
+        has_emotions = all("emotions" in item and "dominant_emotion" in item for item in json_data)
+        
+        # 感情分析が含まれていないJSONデータの場合、感情分析ボタンを表示
+        if not has_emotions:
+            st.warning("このJSONデータには感情情報が含まれていません。感情分析を実行してください。")
+    
+            if st.button("感情分析を実行", key="run_emotion_analysis"):
+                try:
+                    # プログレスバーとステータスメッセージの表示
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    status_text.text("感情分析を開始しています...")
+                    
+                    # JSONデータのコピーを作成
+                    data_to_analyze = json_data.copy()
+                    
+                    # 進捗表示のための関数
+                    def update_progress(current, total):
+                        progress = float(current) / float(total)
+                        progress_bar.progress(progress)
+                        status_text.text(f"感情分析中... ({current}/{total} 完了)")
+                    
+                    # 感情分析プロセッサの初期化
+                    from src.analysis.json_emotion_processor import JsonEmotionProcessor
+                    emotion_processor = JsonEmotionProcessor()
+                    
+                    # 少しずつ進捗を表示しながら感情分析を実行
+                    total_items = len(data_to_analyze)
+                    for i in range(0, total_items, max(1, total_items // 10)):
+                        update_progress(i, total_items)
+                        time.sleep(0.1)  # 進捗表示のための短い遅延
+                        
+                    # 感情分析の実行（データをバッチに分割して処理すると良いかもしれませんが、
+                    # ここではシンプルに全体を一度に処理します）
+                    analyzed_data = emotion_processor.process_json_data(data_to_analyze)
+                    
+                    # 処理完了
+                    progress_bar.progress(1.0)
+                    status_text.text("感情分析が完了しました！")
+                    
+                    # セッションステートを更新
+                    st.session_state.json_data = analyzed_data
+                    st.session_state.characters = sorted(list(set([item["speaker"] for item in analyzed_data])))
+                    st.session_state.emotions = sorted(list(set([item.get("dominant_emotion", "") 
+                                                            for item in analyzed_data 
+                                                            if "dominant_emotion" in item])))
+                    
+                    # 成功メッセージを表示
+                    st.success(f"{len(analyzed_data)}件のデータの感情分析が完了しました。")
+                    
+                    # 画面のリロードを促す
+                    if st.button("分析結果を表示する"):
+                        st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"感情分析中にエラーが発生しました: {str(e)}")
+                    st.error("詳細エラー情報: " + traceback.format_exc())
         
         # データを全て表示
         st.subheader("データプレビュー")
@@ -161,6 +231,27 @@ with tab1:
         st.session_state.json_filename = json_filename
         st.session_state.characters = characters
         st.session_state.emotions = emotions
+        
+        # 感情情報が含まれている場合、感情分布を表示
+        if has_emotions:
+            st.subheader("感情分布")
+            
+            # 各感情の出現回数をカウント
+            emotion_counts = {}
+            for item in json_data:
+                emotion = item.get("dominant_emotion", "")
+                if emotion:
+                    emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+            
+            # データフレームに変換
+            emotion_df = pd.DataFrame({
+                "感情": list(emotion_counts.keys()),
+                "回数": list(emotion_counts.values())
+            })
+            
+            # グラフを表示
+            st.bar_chart(emotion_df, x="感情", y="回数")
+            
     else:
         if json_data:  # データは読み込めたけど検証に失敗した
             st.error("JSONデータの形式が正しくありません。「対応JSONフォーマットについて」を確認してください。")
@@ -173,6 +264,12 @@ with tab2:
     
     if 'json_data' not in st.session_state or not st.session_state.json_data:
         st.warning("まず「データ読み込み」タブでJSONデータを読み込んでください。")
+        st.stop()
+    
+    # 感情分析が完了しているか確認
+    has_emotions = all("emotions" in item and "dominant_emotion" in item for item in st.session_state.json_data)
+    if not has_emotions:
+        st.warning("「データ読み込み」タブで感情分析を実行してください。")
         st.stop()
     
     # 話者情報を取得
@@ -309,6 +406,12 @@ with tab3:
         st.warning("まず「データ読み込み」タブでJSONデータを読み込んでください。")
         st.stop()
     
+    # 感情分析が完了しているか確認
+    has_emotions = all("emotions" in item and "dominant_emotion" in item for item in st.session_state.json_data)
+    if not has_emotions:
+        st.warning("「データ読み込み」タブで感情分析を実行してください。")
+        st.stop()
+    
     if not st.session_state.settings.get("character_mapping"):
         st.warning("「音声設定」タブでキャラクターと話者のマッピングを設定してください。")
         st.stop()
@@ -352,10 +455,11 @@ with tab3:
                 "驚き": {"speedScale": 1.2, "pitchScale": 0.05, "intonationScale": 1.2, "volumeScale": 1.1},
                 "信頼": {"speedScale": 0.95, "pitchScale": 0.0, "intonationScale": 0.9, "volumeScale": 0.95},
                 "嫌悪": {"speedScale": 1.05, "pitchScale": -0.02, "intonationScale": 1.1, "volumeScale": 1.0},
+                "中立": {"speedScale": 1.0, "pitchScale": 0.0, "intonationScale": 1.0, "volumeScale": 1.0},
             }
         
         # 感情の選択
-        emotions_to_edit = st.session_state.emotions or ["喜び", "悲しみ", "怒り", "恐れ", "期待", "驚き", "信頼", "嫌悪"]
+        emotions_to_edit = st.session_state.emotions or ["喜び", "悲しみ", "怒り", "恐れ", "期待", "驚き", "信頼", "嫌悪", "中立"]
         emotions_to_edit = [e for e in emotions_to_edit if e]  # 空文字列を除外
         
         # 感情タブ（ネストされたエクスパンダーの代わりにタブを使用）
@@ -406,91 +510,42 @@ with tab3:
         # 音声ファイルを格納するリスト
         audio_files = []
         
-        # 選択された範囲の音声を合成
+        # 選択された範囲のデータ
         data_to_process = st.session_state.json_data[start_index:end_index+1]
-        total_items = len(data_to_process)
         
-        for i, dialogue in enumerate(data_to_process):
-            progress = i / total_items
+        # 音声合成アダプターの初期化
+        synthesizer = JsonSynthesisAdapter()
+        
+        # 進捗コールバック関数
+        def update_progress(progress, current, total, dialogue):
             progress_bar.progress(progress)
-            
-            character = dialogue["speaker"]
-            text = dialogue["text"]
-            emotion = dialogue.get("dominant_emotion", "")  # 感情がない場合は空文字列
-            
-            truncated_text = text[:30] + ("..." if len(text) > 30 else "")
-            emotion_text = f" ({emotion})" if emotion else ""
-            status_text.text(f"合成中 ({i+1}/{total_items}): {character}「{truncated_text}」{emotion_text}")
-            
-            # 話者IDを取得
-            speaker_id = None
-            if character in st.session_state.settings["character_mapping"]:
-                # デフォルトのスピーカーID
-                speaker_id = st.session_state.settings["character_mapping"][character]
+            if dialogue:
+                character = dialogue["speaker"]
+                text = dialogue["text"]
+                emotion = dialogue.get("dominant_emotion", "")
                 
-                # 感情に対応するスタイルIDがあれば使用
-                if (emotion and 
-                    character in st.session_state.settings["emotion_mapping"] and 
-                    emotion in st.session_state.settings["emotion_mapping"][character]):
-                    speaker_id = st.session_state.settings["emotion_mapping"][character][emotion]
-            
-            if speaker_id is not None:
-                try:
-                    # 音声クエリを作成
-                    response = requests.post(
-                        f"{AIVIS_BASE_URL}/audio_query",
-                        params={"text": text, "speaker": speaker_id}
-                    )
-                    
-                    if response.status_code == 200:
-                        query = response.json()
-                        
-                        # 感情に基づいてパラメータを調整
-                        if use_emotion_params and emotion and emotion in st.session_state.emotion_params:
-                            params = st.session_state.emotion_params[emotion]
-                            
-                            # 各パラメータの調整（上限・下限を考慮）
-                            query["speedScale"] = max(0.5, min(2.0, query["speedScale"] * params["speedScale"]))
-                            query["pitchScale"] = max(-0.15, min(0.15, query["pitchScale"] + params["pitchScale"]))
-                            query["intonationScale"] = max(0.0, min(2.0, query["intonationScale"] * params["intonationScale"]))
-                            query["volumeScale"] = max(0.0, min(2.0, query["volumeScale"] * params["volumeScale"]))
-                        
-                        # 音声合成
-                        synth_response = requests.post(
-                            f"{AIVIS_BASE_URL}/synthesis",
-                            headers={"Content-Type": "application/json"},
-                            params={"speaker": speaker_id},
-                            json=query
-                        )
-                        
-                        if synth_response.status_code == 200:
-                            audio_data = synth_response.content
-                            audio_files.append({
-                                "index": start_index + i,
-                                "character": character,
-                                "text": text,
-                                "emotion": emotion,
-                                "speaker_id": speaker_id,
-                                "audio_data": audio_data
-                            })
-                        else:
-                            st.error(f"音声合成に失敗しました: {synth_response.status_code}")
-                    else:
-                        st.error(f"音声クエリの作成に失敗しました: {response.status_code}")
-                except Exception as e:
-                    st.error(f"処理中にエラーが発生しました: {e}")
-            else:
-                st.warning(f"{character}の話者が設定されていません。")
+                truncated_text = text[:30] + ("..." if len(text) > 30 else "")
+                emotion_text = f" ({emotion})" if emotion else ""
+                status_text.text(f"合成中 ({current+1}/{total}): {character}「{truncated_text}」{emotion_text}")
+        
+        # 音声合成の実行
+        audio_results = synthesizer.synthesize_dialogue(
+            data_to_process,
+            st.session_state.settings["character_mapping"],
+            st.session_state.settings["emotion_mapping"],
+            st.session_state.emotion_params if use_emotion_params else None,
+            progress_callback=update_progress
+        )
         
         progress_bar.progress(1.0)
         status_text.text("合成完了！")
         
         # 合成した音声を表示
-        if audio_files:
+        if audio_results:
             st.subheader("合成された音声")
             
             # テーブル表示形式で音声を表示（表示モード切替なし）
-            for audio_item in audio_files:
+            for audio_item in audio_results:
                 emotion_text = f" ({audio_item['emotion']})" if audio_item['emotion'] else ""
                 speaker_text = ""
                 if audio_item['speaker_id'] in style_options_by_id:
@@ -505,27 +560,22 @@ with tab3:
                 st.divider()
             
             # すべての音声を連結してダウンロード
-            try:
-                # Base64でエンコードした音声データのリストを作成
-                encoded_waves = [base64.b64encode(item["audio_data"]).decode('utf-8') for item in audio_files]
-                
-                # APIを使って音声を連結
-                response = requests.post(
-                    f"{AIVIS_BASE_URL}/connect_waves",
-                    json=encoded_waves
+            combined_audio = synthesizer.connect_audio_files(audio_results)
+            if combined_audio:
+                output_filename = f"{os.path.splitext(st.session_state.json_filename)[0]}_{start_index}-{end_index}.wav"
+                st.download_button(
+                    label="連結された音声をダウンロード",
+                    data=combined_audio,
+                    file_name=output_filename,
+                    mime="audio/wav"
                 )
-                
-                if response.status_code == 200:
-                    output_filename = f"{os.path.splitext(st.session_state.json_filename)[0]}_{start_index}-{end_index}.wav"
-                    st.download_button(
-                        label="連結された音声をダウンロード",
-                        data=response.content,
-                        file_name=output_filename,
-                        mime="audio/wav"
-                    )
-                else:
-                    st.error(f"音声の連結に失敗しました: {response.status_code}")
-            except Exception as e:
-                st.error(f"音声の連結中にエラーが発生しました: {e}")
         else:
             st.warning("合成された音声がありません。")
+
+# Streamlit UI メインエントリーポイントの更新
+def main():
+    # ここでStreamlit UIが初期化される
+    pass
+
+if __name__ == "__main__":
+    main()
