@@ -217,3 +217,22 @@ PREPROCESSING_CONFIG = {
     'remove_dc': True,            # DCオフセットの除去を行うかどうか
     'apply_fade': True            # フェード効果を適用するかどうか
 }
+
+# Streamlit UI関連の定数
+UI_DEFAULT_SETTINGS = {
+    "character_mapping": {},
+    "emotion_mapping": {}
+}
+
+UI_DEFAULT_EMOTION_PARAMS = {
+    "喜び": {"speedScale": 1.15, "pitchScale": 0.05, "intonationScale": 1.0, "volumeScale": 1.0},
+    "悲しみ": {"speedScale": 0.9, "pitchScale": -0.05, "intonationScale": 0.9, "volumeScale": 0.9},
+    "怒り": {"speedScale": 1.1, "pitchScale": 0.0, "intonationScale": 1.3, "volumeScale": 1.2},
+    "恐れ": {"speedScale": 1.05, "pitchScale": 0.0, "intonationScale": 0.8, "volumeScale": 0.9},
+    "期待": {"speedScale": 1.0, "pitchScale": 0.0, "intonationScale": 1.0, "volumeScale": 1.0},
+    "驚き": {"speedScale": 1.2, "pitchScale": 0.05, "intonationScale": 1.2, "volumeScale": 1.1},
+    "信頼": {"speedScale": 0.95, "pitchScale": 0.0, "intonationScale": 0.9, "volumeScale": 0.95},
+    "嫌悪": {"speedScale": 1.05, "pitchScale": -0.02, "intonationScale": 1.1, "volumeScale": 1.0},
+}
+
+UI_SETTINGS_DEFAULT_FILENAME = "default_settings.json"
