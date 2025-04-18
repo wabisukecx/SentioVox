@@ -46,6 +46,11 @@ python -m src.sentiovox <サブコマンド> [オプション]
   python -m src.sentiovox json --file dialogue.json --analyze --synthesize
   ```
 
+- **ui**: Streamlit UIを起動
+  ```bash
+  python -m src.sentiovox ui
+  ```
+
 詳細なオプションは各サブコマンドのヘルプで確認できます：
 ```bash
 python -m src.sentiovox <サブコマンド> --help
@@ -65,7 +70,10 @@ SentioVoxには、グラフィカルユーザーインターフェース（GUI�
 以下のコマンドでStreamlit UIを起動できます：
 
 ```bash
-# 統合コマンド
+# 統合コマンド（推奨）
+python -m src.sentiovox ui
+
+# または直接起動
 streamlit run src/ui/streamlit_app.py --server.fileWatcherType none
 ```
 
