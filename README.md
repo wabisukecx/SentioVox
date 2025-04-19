@@ -11,7 +11,6 @@
 - **音声エクスポート**: 高品質なAACエンコーディングによるM4A形式での保存
 - **JSONベース会話処理**: 複数キャラクターの会話を一括して処理
 - **グラフィカルユーザーインターフェース**: 直感的な操作が可能なStreamlit UI
-- **統合コマンドライン**: 一元化された使いやすいコマンドラインインターフェース
 
 ### 感情パラメータマッピング
 
@@ -26,58 +25,23 @@
 
 感情の強度に応じて、これらのパラメータが適応的に調整されます。
 
-## 統合コマンドラインインターフェース
+## 統一された起動方法
 
-SentioVoxでは、すべての機能に統一されたインターフェースでアクセスできます：
+SentioVoxはStreamlit UIに統合され、以下のコマンドで起動できます：
 
 ```bash
-python -m src.sentiovox <サブコマンド> [オプション]
+python -m src.main
 ```
 
-### サブコマンド
-
-- **process**: 音声/テキストファイルを処理（従来のモード）
-  ```bash
-  python -m src.sentiovox process --file input.mp3 --speak --output
-  ```
-
-- **json**: JSONファイルを処理
-  ```bash
-  python -m src.sentiovox json --file dialogue.json --analyze --synthesize
-  ```
-
-- **ui**: Streamlit UIを起動
-  ```bash
-  python -m src.sentiovox ui
-  ```
-
-詳細なオプションは各サブコマンドのヘルプで確認できます：
-```bash
-python -m src.sentiovox <サブコマンド> --help
-```
+ブラウザが自動的に開き、`http://localhost:8501` でアプリケーションにアクセスできます。
 
 ## Streamlit UI
 
 SentioVoxには、グラフィカルユーザーインターフェース（GUI）としてStreamlitアプリケーションが含まれています。このインターフェースでは、以下の操作が可能です：
 
-1. **感情分析**: JSONファイルの感情分析を実行
-2. **データ読み込み**: JSONフォーマットの会話データの読み込みとプレビュー
-3. **音声設定**: キャラクターと話者のマッピング、感情ごとの話者スタイル設定
-4. **音声合成**: 範囲指定、感情パラメータの調整、音声合成と試聴
-
-### Streamlit UIの起動
-
-以下のコマンドでStreamlit UIを起動できます：
-
-```bash
-# 統合コマンド（推奨）
-python -m src.sentiovox ui
-
-# または直接起動
-streamlit run src/ui/streamlit_app.py --server.fileWatcherType none
-```
-
-ブラウザが自動的に開き、`http://localhost:8501` でアプリケーションにアクセスできます。
+1. **録音と文字起こし**: マイクから音声を録音し、感情分析と音声合成を行う
+2. **単一ファイル処理**: 音声/テキストファイルを処理する
+3. **JSONデータ処理**: 会話データのJSON処理と音声合成を行う
 
 ### 対応するJSONフォーマット
 
@@ -107,49 +71,6 @@ streamlit run src/ui/streamlit_app.py --server.fileWatcherType none
 
 キャラクターと話者のマッピング設定はJSONファイルとして保存でき、後で再利用できます。デフォルトでは、入力JSONファイルと同じベース名に`_settings.json`を付加した名前で保存されます。
 
-## JSON処理コマンド
-
-JSONファイルの処理コマンドが強化されました：
-
-```bash
-python -m src.sentiovox json --file dialogue.json [オプション]
-```
-
-### 主なオプション
-
-| オプション | 説明 | デフォルト値 |
-|---------|------|------------|
-| `--file` | 処理するJSONファイル | 必須 |
-| `--output` | 出力JSONファイルのパス | 自動生成 |
-| `--analyze` | JSONファイルに感情分析を実行 | False |
-| `--synthesize` | JSONファイルから音声合成を実行 | False |
-| `--mapping` | 話者マッピング設定ファイル | なし |
-| `--output-dir` | 音声ファイルの出力ディレクトリ | output |
-| `--start-index` | 開始インデックス | 0 |
-| `--end-index` | 終了インデックス | なし(最後まで) |
-
-### 使用例
-
-1. JSONファイルの感情分析を実行：
-```bash
-python -m src.sentiovox json --file dialogue.json --analyze
-```
-
-2. 感情分析済みJSONファイルから音声合成を実行：
-```bash
-python -m src.sentiovox json --file dialogue_with_emotions.json --synthesize
-```
-
-3. 特定の範囲のみを処理：
-```bash
-python -m src.sentiovox json --file dialogue_with_emotions.json --synthesize --start-index 5 --end-index 10
-```
-
-4. 話者マッピングを指定して音声合成を実行：
-```bash
-python -m src.sentiovox json --file dialogue_with_emotions.json --synthesize --mapping mapping.json
-```
-
 ## システム要件
 
 SentioVoxを実行するために必要な環境：
@@ -158,7 +79,7 @@ SentioVoxを実行するために必要な環境：
 - CUDA対応GPUを推奨（CPUモードも利用可能）
 - AIVISサーバー（localhost:10101で動作）
 - FFmpeg（音声ファイル変換用）
-- Streamlit 1.30.0以上（UIモード利用時）
+- Streamlit 1.30.0以上
 
 Windows以外でもパラメータを変更すれば動くと思いますが、
 Windows10/11でのご利用を推奨します。
@@ -171,14 +92,9 @@ Windows10/11でのご利用を推奨します。
 src/
 ├── __init__.py
 ├── main.py                 # メインスクリプト
-├── ui_main.py              # Streamlit UI用エントリーポイント
-├── sentiovox.py            # 統合コマンドラインエントリーポイント
 ├── ui/                     # UI層
 │   ├── __init__.py
 │   └── streamlit_app.py    # Streamlit UIの実装
-├── commands/               # コマンドモジュール
-│   ├── __init__.py
-│   └── process_json.py     # JSON処理コマンド
 ├── analysis/               # 分析モジュール
 │   ├── __init__.py
 │   ├── emotion.py          # 感情分析エンジン
@@ -246,84 +162,17 @@ pip install -r requirements.txt
 
 ## 使用方法
 
-### 統合コマンドラインモード
-
-最も簡単な使用方法は統合コマンドラインインターフェースを使用することです：
+SentioVoxはStreamlit UIに統合され、以下のコマンドで起動します：
 
 ```bash
-python -m src.sentiovox <サブコマンド> [オプション]
+python -m src.main
 ```
 
-サブコマンドの一覧を表示するには：
+UIでは以下の操作が可能です：
 
-```bash
-python -m src.sentiovox --help
-```
-
-### 従来のコマンドラインモード
-
-以下のコマンドライン引数をサポートしています：
-
-| 引数 | 説明 | デフォルト値 |
-|------|------|------------|
-| `--file` | 分析対象の音声/テキストファイルを指定 | なし |
-| `--record` | マイクからの録音を開始（秒数を引数として指定可能、例：--record 15） | 10秒 |
-| `--speak` | 音声合成出力を有効化 | False |
-| `--output` | 合成音声をM4Aファイルとして保存。タイムスタンプ付きで「output_20250201_123456.m4a」の形式で保存されます。 | なし |
-
-### 使用例
-
-以下に一般的な使用シナリオを示します：
-
-1. Streamlit UIを起動:
-```bash
-python -m src.sentiovox ui
-```
-
-2. 音声ファイルを分析し、AIVIS_Engineで音声を再生、音声ファイルとして保存:
-```bash
-python -m src.sentiovox process --file input.mp3 --speak --output
-```
-
-3. 音声ファイルを分析し、文字起こし結果をコンソールに表示：
-```bash
-python -m src.main --file input.mp3
-```
-
-4. テキストファイルを分析し、音声を再生:
-```bash
-python -m src.main --file input.txt --speak
-```
-
-5. テキストファイルを分析し、音声ファイルとして保存:
-```bash
-python -m src.main --file input.txt --output
-```
-
-6. 音声を15秒間録音し、音声ファイルとして保存(ファイル名を変更):
-```bash
-python -m src.main --record 15 --speak --output my_recording
-```
-
-7. JSONファイルに感情分析を実行:
-```bash
-python -m src.sentiovox json --file dialogue.json --analyze
-```
-
-8. 感情分析済みJSONファイルから音声合成を実行:
-```bash
-python -m src.sentiovox json --file dialogue_with_emotions.json --synthesize
-```
-
-### Streamlit UIモード
-
-Streamlit UIを使用する場合は以下のコマンドを実行します：
-
-```bash
-python -m src.sentiovox ui
-```
-
-ブラウザで自動的にUIが開きます。
+1. **録音と文字起こし**: マイクから音声を録音し、感情分析と音声合成を行います
+2. **単一ファイル処理**: 音声ファイル(.mp3, .wav, .m4a, .flac)またはテキストファイル(.txt)を処理します
+3. **JSONデータ処理**: 会話データの感情分析、キャラクター設定、音声合成を行います
 
 ## エラーハンドリングと例外処理
 
@@ -359,7 +208,6 @@ python -m src.sentiovox ui
 
 ### 録音時の注意点
 - 静かな録音環境を確保してください
-- Ctrl+Cで録音を停止できます
 - 一時ファイルは自動的に管理されます
 
 ### 感情分析について
@@ -439,6 +287,15 @@ python -m src.sentiovox ui
 
 ## 更新履歴
 
+### V1.1.1 - Streamlit UIへの統合 (2025年4月)
+
+SentioVox V1.1.1では、以下の機能強化を行いました：
+
+- **起動方法の統一**: すべての機能が `python -m src.main` で起動可能に
+- **UIの一元化**: すべての機能をStreamlit UIに統合
+- **シンプルな操作性**: コマンドラインパラメータの削減と直感的なUI操作
+- **プロジェクト構造の整理**: より保守性の高いモジュール構成
+
 ### V1.1 - JSONベース会話処理とStreamlit UI導入 (2025年4月)
 
 SentioVox V1.1では、以下の機能強化を行いました：
@@ -452,11 +309,5 @@ SentioVox V1.1では、以下の機能強化を行いました：
 - **範囲指定合成**: 指定した範囲のみを合成する機能
 - **合成音声のインラインプレビュー**: ブラウザ上で直接試聴可能
 - **連結音声のダウンロード**: 合成した音声を連結してダウンロード可能
-- **統合コマンドラインインターフェース**: `sentiovox`コマンドによる一元的な機能アクセス
-- **サブコマンド構造の導入**: UI起動、テキスト/音声処理、JSON処理をサブコマンドとして整理
-- **JSONベース処理の強化**: JSONデータの感情分析と音声合成機能の拡充
 - **感情分析の精度向上**: 感情検出アルゴリズムの改善とパフォーマンス最適化
 - **エラーハンドリングの改善**: 堅牢性の向上と詳細なエラーメッセージ
-- **プロジェクト構造の整理**: より保守性の高いモジュール構成
-
-この更新は、コマンドライン操作に慣れていないユーザーや、大量の会話データを効率的に処理したいユーザーに特に有用です。
