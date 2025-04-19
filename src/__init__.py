@@ -1,1 +1,2 @@
-# src/__init__.py
+# SentioVoxパッケージ初期化
+# コマンドモジュールは削除され、機能はStreamlit UIに統合されました
